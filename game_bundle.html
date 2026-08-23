@@ -509,6 +509,10 @@ kbd {
   .go-grid { grid-template-columns: 1fr; }
 }
 
+/* "Ta ligne" ajoutée sous le Top 10 quand tu n'y figures pas */
+#lb-body tr.you-detached td { border-top: 2px dashed rgba(7, 42, 68, 0.28); padding-top: 10px; }
+#lb-body tr.you td { background: rgba(18, 198, 230, 0.10); font-weight: 700; }
+
 </style>
 
   <!-- Three.js r184 via jsDelivr import map -->
@@ -2205,11 +2209,12 @@ class Game {
     }
     if (rows.length === 0) { dom.lbStatus.textContent = 'No miles logged yet — be the first to fly!'; return; }
     dom.lbStatus.textContent = '';
+    const me = highlightName || (memory.read().nickname || '');
     const medals = ['🥇', '🥈', '🥉'];
     rows.forEach((r, i) => {
       const tr = document.createElement('tr');
       if (i < 3) tr.className = 'rank-' + (i + 1);
-      if (highlightName && r.player_name === highlightName) tr.classList.add('you');
+      if (me && r.player_name === me) tr.classList.add('you');
       tr.innerHTML =
         `<td>${i < 3 ? `<span class="lb-medal">${medals[i]}</span>` : (i + 1)}</td>` +
         `<td>${escapeHtml(r.player_name)}</td>` +
@@ -2217,6 +2222,21 @@ class Game {
         `<td class="lb-num">${Number(r.butterflies).toLocaleString()}</td>`;
       dom.lbBody.appendChild(tr);
     });
+
+    // Si "toi" n'es pas dans le Top 10, on ajoute ta propre ligne avec ton rang.
+    if (me && !rows.some((r) => r.player_name === me)) {
+      const mine = await leaderboard.rankAndBest(me);
+      if (mine) {
+        const tr = document.createElement('tr');
+        tr.className = 'you you-detached';
+        tr.innerHTML =
+          `<td>${mine.rank}</td>` +
+          `<td>${escapeHtml(me)}</td>` +
+          `<td class="lb-num">${Number(mine.score).toLocaleString()}</td>` +
+          `<td class="lb-num">${Number(mine.butterflies).toLocaleString()}</td>`;
+        dom.lbBody.appendChild(tr);
+      }
+    }
   }
 
   async saveScore() {
@@ -2317,13 +2337,30 @@ const leaderboard = {
     if (!this.client) return null;
     try {
       const { data, error } = await this.client
-        .from('leaderboard')
+        .from('leaderboard_best')
         .select('player_name, score, butterflies')
         .order('score', { ascending: false })
         .order('butterflies', { ascending: false })
         .limit(limit);
       if (error) return null;
       return data || [];
+    } catch (e) { return null; }
+  },
+  async rankAndBest(name) {
+    if (!this.client || !name) return null;
+    try {
+      const { data, error } = await this.client
+        .from('leaderboard_best')
+        .select('player_name, score, butterflies')
+        .eq('player_name', name)
+        .maybeSingle();
+      if (error || !data) return null;
+      const { count, error: e2 } = await this.client
+        .from('leaderboard_best')
+        .select('*', { count: 'exact', head: true })
+        .gt('score', data.score);
+      if (e2) return null;
+      return { rank: (count || 0) + 1, score: data.score, butterflies: data.butterflies };
     } catch (e) { return null; }
   },
   async submit(row) {
