@@ -1128,6 +1128,11 @@ class Game {
     this.renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true, alpha: true, precision: 'highp' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Mobile GPUs turn GL dithering on by default; blending many soft transparent
+    // cloud sprites over the sky gradient in an 8-bit buffer then scatters coloured
+    // pixels ("mouchetures" visible only on phones). Turn it off.
+    const gl = this.renderer.getContext();
+    gl.disable(gl.DITHER);
   }
 
   initScene() {
