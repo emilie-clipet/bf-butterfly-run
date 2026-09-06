@@ -1170,7 +1170,7 @@ class Game {
 
     // Ambient floating particles (points)
     const pGeo = new THREE.BufferGeometry();
-    const N = 140, pos = new Float32Array(N * 3);
+    const N = 70, pos = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 40;
       pos[i * 3 + 1] = Math.random() * 14;
@@ -1178,7 +1178,8 @@ class Game {
     }
     pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this.particles = new THREE.Points(pGeo, new THREE.PointsMaterial({
-      color: 0xffffff, size: 0.16, transparent: true, opacity: 0.6, depthWrite: false,
+      map: this.cloudTex,           // soft round sprite instead of hard 1px squares
+      color: 0xffffff, size: 0.9, transparent: true, opacity: 0.3, depthWrite: false,
     }));
     this.scene.add(this.particles);
 
@@ -1547,7 +1548,7 @@ class Game {
     grp.add(plane);
 
     grp.position.set(
-      (Math.random() - 0.5) * (CONFIG.BOUNDS_X * 1.85),
+      (Math.random() - 0.5) * ((this.boundsX || CONFIG.BOUNDS_X) * 1.9),   // stay within reach on any screen
       CONFIG.BOUNDS_Y_MIN + Math.random() * (CONFIG.BOUNDS_Y_MAX - CONFIG.BOUNDS_Y_MIN),
       CONFIG.SPAWN_Z - Math.random() * 20
     );
@@ -1585,7 +1586,7 @@ class Game {
     grp.add(bolt);
 
     grp.position.set(
-      (Math.random() - 0.5) * (CONFIG.BOUNDS_X * 2.0),
+      (Math.random() - 0.5) * ((this.boundsX || CONFIG.BOUNDS_X) * 2.0),   // dodgeable on any screen
       CONFIG.BOUNDS_Y_MIN + Math.random() * (CONFIG.BOUNDS_Y_MAX - CONFIG.BOUNDS_Y_MIN),
       CONFIG.SPAWN_Z - Math.random() * 15
     );
@@ -2069,17 +2070,19 @@ class Game {
     this.camera.aspect = aspect;
 
     // Base vertical FOV is tuned for a 16:9 landscape screen. In portrait we widen
-    // the vertical FOV so the horizontal field of view stays constant — the player
-    // sees the same amount of world left-to-right on a phone as on a laptop.
+    // the vertical FOV so the horizontal field of view stays (roughly) constant —
+    // the player sees the same amount of world left-to-right on a phone as on a
+    // laptop. The result is capped so a very tall screen doesn't go fish-eye.
     const BASE_FOV = 60;
     const REF_ASPECT = 16 / 9;
+    const MAX_FOV = 90;
+    let fov = BASE_FOV;
     if (aspect < REF_ASPECT) {
       const baseV = THREE.MathUtils.degToRad(BASE_FOV);
       const horiz = 2 * Math.atan(Math.tan(baseV / 2) * REF_ASPECT);        // horizontal FOV to preserve
-      this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(horiz / 2) / aspect));
-    } else {
-      this.camera.fov = BASE_FOV;
+      fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(horiz / 2) / aspect));
     }
+    this.camera.fov = Math.min(MAX_FOV, fov);
     this.camera.updateProjectionMatrix();
 
     this.updatePlayerBounds();

@@ -29,8 +29,32 @@ if not st.session_state.unlocked:
     st.caption("Accès réservé — surprise interne French bee.")
     st.stop()
 
-st.markdown("<style>header{visibility:hidden;height:0}"
-            "[data-testid='stAppViewBlockContainer'],.block-container{padding:0!important;max-width:100%!important}"
-            "footer{visibility:hidden}</style>", unsafe_allow_html=True)
+# Strip Streamlit's chrome and let the embedded game fill the whole device
+# viewport. The component <iframe> is pinned to the visual viewport (100dvh),
+# so the game inside gets real width/height and can be responsive.
+st.markdown(
+    """
+<style>
+  header, footer, #MainMenu {visibility: hidden; height: 0;}
+  [data-testid='stAppViewBlockContainer'], .block-container,
+  [data-testid='stMainBlockContainer'], [data-testid='stVerticalBlock'] {
+    padding: 0 !important; margin: 0 !important; max-width: 100% !important; gap: 0 !important;
+  }
+  [data-testid='stAppViewContainer'], [data-testid='stMain'], .stApp {
+    overflow: hidden !important;
+  }
+  .stApp iframe, iframe[title='streamlit_component_v1'] {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    border: 0 !important;
+    z-index: 2147483647 !important;
+  }
+</style>
+""",
+    unsafe_allow_html=True,
+)
 components.html((Path(__file__).parent / "game_bundle.html").read_text(encoding="utf-8"),
-                height=820, scrolling=False)
+                height=800, scrolling=False)
