@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>French bee — Butterfly Run</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -35,14 +35,19 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
+  margin: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
   font-family: var(--font-body);
   color: var(--blue-ink);
   background: #bfeefc;
   -webkit-font-smoothing: antialiased;
 }
+
+canvas { display: block; }
 
 #game-canvas {
   position: fixed;
@@ -292,12 +297,12 @@ kbd {
 /* ---------- HUD ---------- */
 .hud {
   position: fixed; inset: 0; z-index: 15; pointer-events: none;
-  padding: 18px;
+  padding: max(12px, env(safe-area-inset-top)) 18px 18px;
 }
-.hud-topleft { position: absolute; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; }
-.hud-topright { position: absolute; top: 16px; right: 74px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.hud-topleft { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 16px; display: flex; flex-direction: column; gap: 8px; }
+.hud-topright { position: absolute; top: max(16px, env(safe-area-inset-top)); right: 74px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
 
-.hud-controls { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto; }
+.hud-controls { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto; }
 .hud-btn {
   width: 40px; height: 40px; border-radius: 12px;
   border: 1px solid var(--glass-brd); background: var(--glass);
@@ -326,14 +331,14 @@ kbd {
   font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--blue-mid);
 }
-.stat-value { font-family: var(--font-disp); font-weight: 800; font-size: 26px; line-height: 1.1; color: var(--blue-ink); }
-.stat-value-sm { font-family: var(--font-disp); font-weight: 700; font-size: 15px; color: var(--blue-ink); }
+.stat-value { font-family: var(--font-disp); font-weight: 800; font-size: clamp(18px, 5vw, 26px); line-height: 1.1; color: var(--blue-ink); }
+.stat-value-sm { font-family: var(--font-disp); font-weight: 700; font-size: clamp(12px, 3.4vw, 15px); color: var(--blue-ink); }
 .dest-badge { text-align: right; }
-.dest-badge .stat-value { font-size: 20px; }
+.dest-badge .stat-value { font-size: clamp(15px, 4.4vw, 20px); }
 
 .next-dest { width: 210px; text-align: right; }
-.nd-name { display: block; font-family: var(--font-disp); font-weight: 700; font-size: 18px; color: var(--cyan-deep); }
-.nd-count { display: block; font-size: 12px; font-weight: 600; color: var(--blue-mid); margin: 2px 0 6px; }
+.nd-name { display: block; font-family: var(--font-disp); font-weight: 700; font-size: clamp(14px, 4vw, 18px); color: var(--cyan-deep); }
+.nd-count { display: block; font-size: clamp(10px, 3vw, 12px); font-weight: 600; color: var(--blue-mid); margin: 2px 0 6px; }
 .nd-track { height: 8px; border-radius: 999px; background: rgba(7,42,68,0.12); overflow: hidden; }
 .nd-bar {
   height: 100%; width: 0%;
@@ -501,12 +506,19 @@ kbd {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 640px) {
-  .hud-topright { right: 16px; top: 70px; }
+  .hud-topright { right: 16px; top: max(70px, calc(env(safe-area-inset-top) + 54px)); }
   .next-dest { width: 180px; }
   .stat { min-width: 120px; }
-  .stat-value { font-size: 22px; }
   .menu-inner { padding: 28px 22px; }
   .go-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .hud { padding: max(10px, env(safe-area-inset-top)) 10px 10px; }
+  .hud-topleft { left: max(10px, env(safe-area-inset-left)); }
+  .stat, .stat-small { min-width: 0; padding: 5px 10px; }
+  .dest-badge, .next-dest { padding: 6px 10px; }
+  .next-dest { width: min(52vw, 180px); }
 }
 
 /* "Ta ligne" ajoutée sous le Top 10 quand tu n'y figures pas */
@@ -865,14 +877,21 @@ function skyTexture(topHex, bottomHex) {
   return tex;
 }
 function softCircleTexture(hex, softness = 0.5) {
-  const s = 128, c = document.createElement('canvas'); c.width = c.height = s;
+  // 256px source + linear sampling with mipmaps disabled: on mobile GPUs the old
+  // 128px mipmapped sprite is what made the clouds shimmer / speckle.
+  const s = 256, c = document.createElement('canvas'); c.width = c.height = s;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
   grad.addColorStop(0, hex);
   grad.addColorStop(softness, hex.length === 7 ? hex + 'cc' : hex);
   grad.addColorStop(1, hex.slice(0, 7) + '00');
   g.fillStyle = grad; g.beginPath(); g.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2); g.fill();
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
 }
 function firTexture() {
   const w = 220, h = 180, c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1096,14 +1115,17 @@ class Game {
     this.initPools();
     this.bindEvents();
 
-    window.addEventListener('resize', () => this.onResize());
-    this.onResize();
+    const onResize = () => this.resize();
+    window.addEventListener('resize', onResize);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', () => setTimeout(onResize, 300));
+    this.resize();
     this.loop();
   }
 
   /* ---- Three.js setup ---- */
   initRenderer() {
-    this.renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true, alpha: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true, alpha: true, precision: 'highp' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
   }
@@ -1932,7 +1954,8 @@ class Game {
     if (right) this.playerTarget.x += CONFIG.MOVE_X * dt;
     if (up) this.playerTarget.y += CONFIG.MOVE_Y * dt;
     if (down) this.playerTarget.y -= CONFIG.MOVE_Y * dt;
-    this.playerTarget.x = THREE.MathUtils.clamp(this.playerTarget.x, -CONFIG.BOUNDS_X, CONFIG.BOUNDS_X);
+    const boundsX = this.boundsX || CONFIG.BOUNDS_X;
+    this.playerTarget.x = THREE.MathUtils.clamp(this.playerTarget.x, -boundsX, boundsX);
     this.playerTarget.y = THREE.MathUtils.clamp(this.playerTarget.y, CONFIG.BOUNDS_Y_MIN, CONFIG.BOUNDS_Y_MAX);
 
     const px = this.player.position.x;
@@ -2036,11 +2059,39 @@ class Game {
   }
 
   /* ---- Resize ---- */
-  onResize() {
+  resize() {
     const w = window.innerWidth, h = window.innerHeight;
+
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
+
+    const aspect = w / h;
+    this.camera.aspect = aspect;
+
+    // Base vertical FOV is tuned for a 16:9 landscape screen. In portrait we widen
+    // the vertical FOV so the horizontal field of view stays constant — the player
+    // sees the same amount of world left-to-right on a phone as on a laptop.
+    const BASE_FOV = 60;
+    const REF_ASPECT = 16 / 9;
+    if (aspect < REF_ASPECT) {
+      const baseV = THREE.MathUtils.degToRad(BASE_FOV);
+      const horiz = 2 * Math.atan(Math.tan(baseV / 2) * REF_ASPECT);        // horizontal FOV to preserve
+      this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(horiz / 2) / aspect));
+    } else {
+      this.camera.fov = BASE_FOV;
+    }
     this.camera.updateProjectionMatrix();
+
+    this.updatePlayerBounds();
+  }
+
+  /* ---- Horizontal steering limit derived from the visible frustum ---- */
+  updatePlayerBounds() {
+    const dist = Math.abs(this.camBase.z - CONFIG.PLAYER_Z);
+    const halfH = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * dist;
+    const halfW = halfH * this.camera.aspect;
+    const margin = 2.2;   // ~half the plane sprite + a little air, so it never clips the edge
+    this.boundsX = Math.max(1.5, halfW - margin);
   }
 
   /* ---- Input & UI events ---- */
