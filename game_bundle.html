@@ -877,8 +877,8 @@ function skyTexture(topHex, bottomHex) {
   return tex;
 }
 function softCircleTexture(hex, softness = 0.5) {
-  // 256px source + linear sampling with mipmaps disabled: on mobile GPUs the old
-  // 128px mipmapped sprite is what made the clouds shimmer / speckle.
+  // 256px source, linear sampling, no mipmaps — a fully deterministic gradient
+  // (no Math.random) so the cloud sprite can't add its own noise on mobile.
   const s = 256, c = document.createElement('canvas'); c.width = c.height = s;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
@@ -888,6 +888,7 @@ function softCircleTexture(hex, softness = 0.5) {
   g.fillStyle = grad; g.beginPath(); g.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2); g.fill();
   const tex = new THREE.CanvasTexture(c);
   tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = false;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
@@ -1125,15 +1126,29 @@ class Game {
 
   /* ---- Three.js setup ---- */
   initRenderer() {
-    // alpha:false -> opaque canvas. The scene always paints its own sky background,
-    // so nothing changes visually, but the browser no longer re-composites the
-    // canvas over the page — that second 8-bit pass was half of the mobile-only
-    // colour speckle in the clouds. gl.disable(DITHER) kills the GPU's own pass.
-    this.renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true, alpha: false, precision: 'highp' });
+    // iOS Safari hands WebGL an RGB565 (16-bit) default framebuffer; dithering
+    // 26 stacked transparent cloud sprites in 16 bits is what scatters coloured
+    // pixels ("moucheté") on mobile only. Opaque canvas + GPU dither off fixes it.
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: dom.canvas,
+      alpha: false,
+      antialias: true,
+      precision: 'highp',
+      powerPreference: 'high-performance',
+      premultipliedAlpha: true,
+      preserveDrawingBuffer: false,
+      stencil: false,
+      depth: true,
+    });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.setClearColor(START_FOG, 1);   // opaque canvas → needs a sky-coloured clear (scene.background also set later)
+
     const gl = this.renderer.getContext();
     gl.disable(gl.DITHER);
+    console.log('FB bits R/G/B/A:',
+      gl.getParameter(gl.RED_BITS), gl.getParameter(gl.GREEN_BITS),
+      gl.getParameter(gl.BLUE_BITS), gl.getParameter(gl.ALPHA_BITS));
   }
 
   initScene() {
