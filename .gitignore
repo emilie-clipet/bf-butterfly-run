@@ -1,0 +1,8 @@
+# Ce dépôt ne sert qu'au déploiement Streamlit Cloud : il ne suit que le bundle
+# autonome et les 2 fichiers de config. Tout le reste (code source, notes, SQL,
+# archives) reste local et n'est pas versionné.
+/*
+!/.gitignore
+!/game_bundle.html
+!/streamlit_app.py
+!/requirements.txt
