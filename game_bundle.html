@@ -1168,20 +1168,9 @@ class Game {
     this.clouds = [];
     for (let i = 0; i < 26; i++) this.clouds.push(this.makeCloud(true));
 
-    // Ambient floating particles (points)
-    const pGeo = new THREE.BufferGeometry();
-    const N = 70, pos = new Float32Array(N * 3);
-    for (let i = 0; i < N; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 40;
-      pos[i * 3 + 1] = Math.random() * 14;
-      pos[i * 3 + 2] = -Math.random() * 150;
-    }
-    pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    this.particles = new THREE.Points(pGeo, new THREE.PointsMaterial({
-      map: this.cloudTex,           // soft round sprite instead of hard 1px squares
-      color: 0xffffff, size: 0.9, transparent: true, opacity: 0.3, depthWrite: false,
-    }));
-    this.scene.add(this.particles);
+    // (Ambient floating particles removed — textured THREE.Points render as
+    //  rainbow garbage on some mobile GPUs, and they added little on desktop.)
+    this.particles = null;
 
     // Skyline silhouette (revealed for New York), procedural + lightweight
     this.skyline = this.makeSkyline();
@@ -1875,14 +1864,6 @@ class Game {
       c.quaternion.copy(this.camera.quaternion);
       if (c.position.z > CONFIG.DESPAWN_Z + 10) this.resetCloud(c, false);
     }
-    // particles
-    const p = this.particles.geometry.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      let z = p.getZ(i) + move;
-      if (z > CONFIG.DESPAWN_Z) { z = CONFIG.SPAWN_Z; }
-      p.setZ(i, z);
-    }
-    p.needsUpdate = true;
     this.ocean.position.z += move * 0.3;
     if (this.ocean.position.z > 40) this.ocean.position.z = -120;
 
