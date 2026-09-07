@@ -877,15 +877,22 @@ function skyTexture(topHex, bottomHex) {
   return tex;
 }
 function softCircleTexture(hex, softness = 0.5) {
-  // 256px source, linear sampling, no mipmaps — a fully deterministic gradient
-  // (no Math.random) so the cloud sprite can't add its own noise on mobile.
-  const s = 256, c = document.createElement('canvas'); c.width = c.height = s;
+  // 256px, linear, no mipmaps, no Math.random. Fill EVERY pixel with the solid
+  // colour first, then carve only the alpha with a radial falloff. iOS Safari
+  // leaves garbage RGB in the transparent pixels of canvas-sourced textures —
+  // that is the multicoloured speckle seen in the soft cloud edges on iPhone.
+  const s = 256, base = hex.slice(0, 7);
+  const c = document.createElement('canvas'); c.width = c.height = s;
   const g = c.getContext('2d');
+  g.fillStyle = base;
+  g.fillRect(0, 0, s, s);
+  g.globalCompositeOperation = 'destination-in';
   const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  grad.addColorStop(0, hex);
-  grad.addColorStop(softness, hex.length === 7 ? hex + 'cc' : hex);
-  grad.addColorStop(1, hex.slice(0, 7) + '00');
-  g.fillStyle = grad; g.beginPath(); g.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2); g.fill();
+  grad.addColorStop(0, 'rgba(0,0,0,1)');
+  grad.addColorStop(softness, 'rgba(0,0,0,0.8)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, s, s);
   const tex = new THREE.CanvasTexture(c);
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
@@ -1146,41 +1153,9 @@ class Game {
 
     const gl = this.renderer.getContext();
     gl.disable(gl.DITHER);
-    const fbBits = [gl.getParameter(gl.RED_BITS), gl.getParameter(gl.GREEN_BITS),
-                    gl.getParameter(gl.BLUE_BITS), gl.getParameter(gl.ALPHA_BITS)];
-    console.log('FB bits R/G/B/A:', ...fbBits);
-    this.showFbBits(fbBits);   // temporary on-screen readout (iOS has no easy console)
-
-    // The on-screen buffer can still be RGB565 on iOS, and the driver may ignore
-    // gl.disable(DITHER). So the scene is composited into a guaranteed 8-bit RGBA
-    // offscreen target (with MSAA), then presented with a single opaque draw —
-    // the 26 transparent cloud sprites never touch a 16-bit buffer, so the
-    // multicolour speckle can't form. Look is unchanged.
-    this.sceneRT = new THREE.WebGLRenderTarget(2, 2, {
-      type: THREE.UnsignedByteType,
-      colorSpace: THREE.SRGBColorSpace,
-      depthBuffer: true,
-      stencilBuffer: false,
-      samples: 4,
-    });
-    this.presentScene = new THREE.Scene();
-    this.presentCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    this.presentQuad = new THREE.Mesh(
-      new THREE.PlaneGeometry(2, 2),
-      new THREE.MeshBasicMaterial({ map: this.sceneRT.texture, depthTest: false, depthWrite: false })
-    );
-    this.presentScene.add(this.presentQuad);
-  }
-
-  showFbBits(bits) {
-    try {
-      const el = document.createElement('div');
-      el.textContent = 'FB ' + bits.join('/');
-      el.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:99999;font:12px/1 monospace;' +
-        'background:rgba(0,0,0,.6);color:#fff;padding:3px 6px;border-radius:4px;pointer-events:none';
-      document.body.appendChild(el);
-      setTimeout(() => el.remove(), 8000);
-    } catch (e) {}
+    console.log('FB bits R/G/B/A:',
+      gl.getParameter(gl.RED_BITS), gl.getParameter(gl.GREEN_BITS),
+      gl.getParameter(gl.BLUE_BITS), gl.getParameter(gl.ALPHA_BITS));
   }
 
   initScene() {
@@ -1906,11 +1881,7 @@ class Game {
       this.camera.position.lerp(this.camBase, dt * 4);
     }
 
-    // Composite the scene in the 8-bit RGBA offscreen target, then present it.
-    this.renderer.setRenderTarget(this.sceneRT);
     this.renderer.render(this.scene, this.camera);
-    this.renderer.setRenderTarget(null);
-    this.renderer.render(this.presentScene, this.presentCamera);
   }
 
   animateWorld(dt, speed) {
@@ -2103,10 +2074,6 @@ class Game {
 
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(w, h, false);
-    if (this.sceneRT) {
-      const dpr = this.renderer.getPixelRatio();
-      this.sceneRT.setSize(Math.max(1, Math.round(w * dpr)), Math.max(1, Math.round(h * dpr)));
-    }
 
     const aspect = w / h;
     this.camera.aspect = aspect;
